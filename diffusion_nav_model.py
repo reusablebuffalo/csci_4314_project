@@ -6,6 +6,8 @@ from scipy import interpolate
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import math
+import matplotlib.animation as animation
+
 
 class Source:
     def __init__(self, iterations, step):
@@ -54,6 +56,7 @@ def source_propagation(A, B, D, t_array, save_movie=True, include_agent=True):
     if(n_sources < len(t_array)):
         repeat_final_position = np.repeat(cumulative_length[-1], repeats=(len(t_array)-n_sources))
         final_step_locs = np.append(final_step_locs, repeat_final_position)
+        n_sources = len(t_array)
     f = interpolate.interp1d(cumulative_length, pathXY) # location (x,y) as a funciton of arclength (distance traveled along curve)
     final_pathXY= f(final_step_locs) # compute smooth curve of source's path s
     
@@ -77,8 +80,9 @@ def source_propagation(A, B, D, t_array, save_movie=True, include_agent=True):
     source_x_array = np.floor(source_x_array/dx) # does this NEED to be floored? @ian: maybe un-floor this
     source_y_array = np.floor(source_y_array/dy)
 
-    min_x = np.min(source_x_array) - dx*100; max_x = np.max(source_x_array)+ dx*100
-    min_y = np.min(source_y_array) - dy*100; max_y = np.max(source_y_array)+ dy*100
+    extra_space = 10
+    min_x = np.min(source_x_array) - dx*extra_space; max_x = np.max(source_x_array)+ dx*extra_space
+    min_y = np.min(source_y_array) - dy*extra_space; max_y = np.max(source_y_array)+ dy*extra_space
 
     print(n_sources)
 
@@ -95,21 +99,25 @@ def source_propagation(A, B, D, t_array, save_movie=True, include_agent=True):
     agent_start = 20 # start agent at t = 20
 
     c = np.zeros(x.shape)
+    fig = plt.figure(figsize=(5,6))
+    ims = []
     for t_i in range(1,len(t_array)):
+        if(t_i%25 == 0):
+            print(f"{t_i*100/len(t_array)}% done.")
         t = t_array[t_i]
-
         source_activity = np.zeros(n_sources) 
         # what if len(t_array) > n_sources???? we might need to do a min max dealio or just extend source x array to be length of t_array
         source_activity[:t_i] = t_array[:t_i]
         if include_agent and t > agent_start:
             # find current up the gradient direction
             pass
-        if save_movie:
-            plt.pcolormesh(x,y,c, vmin=0, vmax=3.5)
-            plt.colorbar()
-            plt.draw()
-            plt.pause(0.00001)
-            plt.clf()
+        if save_movie: # ADD ANOTHER OPTION TO WATCH IN REAL TIME vs just save
+            plot = plt.pcolormesh(x,y,c, vmin=0, vmax=3.5)
+            title = plt.text(0,max_y+5,f"t={t_i}",size=20,horizontalalignment='center',verticalalignment='baseline')
+            ims.append([plot,title])
+            # plt.draw()
+            # plt.pause(0.00001)
+            # plt.clf()
         c = np.zeros(x.shape)
         for source_i in range(0,n_sources):
             if source_activity[source_i] > 0:
@@ -117,6 +125,13 @@ def source_propagation(A, B, D, t_array, save_movie=True, include_agent=True):
                 curr_c = ((A/(curr_t**0.5))*np.exp(-1*(np.power((x-source_x_array[source_i]-(wind_x[source_i]*curr_t)),2)+
                 np.power((y-source_y_array[source_i])-wind_y[source_i]*curr_t,2))/(4*D*curr_t)))*(0.5**(curr_t/B))
                 c = c + curr_c
+    plt.colorbar()
+    plt.xlabel('x')
+    plt.ylabel('y')
+    im_ani = animation.ArtistAnimation(fig, ims, interval=50, repeat_delay=3000)
+    Writer = animation.writers['ffmpeg'] # ['pillow'] can write gifs
+    writer = Writer(fps=15, metadata=dict(artist='Me'))
+    im_ani.save('animation.mp4', writer=writer)
 
 A = 2 # SOMETHING ABOUT DIFFUSION
 B=200 #200 #20 
