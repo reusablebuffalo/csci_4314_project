@@ -10,133 +10,155 @@ import matplotlib.animation as animation
 
 
 class Source:
-    def __init__(self, iterations, step):
-        x = np.arange(0, step*iterations, step)
-        self.trajectory = np.asarray([x, x])
-    def next_position(self, i):
-        return self.trajectory[i]
+    def __init__(self):
+        pass
+    
+    def get_interpolated_data(self, t_array, n_sources):
+        source_x_array, source_y_array, wind_x, wind_y = self.get_data(30) # wind_x and wind_y must have same length
+        pathXY = np.asarray([source_x_array, source_y_array])
+        
+        # compute step lengths from data
+        step_lengths = np.sqrt(np.sum(np.power(np.diff(pathXY, axis=1), 2), axis=0))
+        step_lengths = np.insert(step_lengths, 0, 0)
+        
+        # interpolate movement between data points
+        cumulative_length = np.cumsum(step_lengths)
+        final_step_locs = np.linspace(0, cumulative_length[-1], n_sources)
+
+        if(n_sources < len(t_array)): # should target just stop moving but still have an odor?
+            repeat_final_position = np.repeat(cumulative_length[-1], repeats=(len(t_array)-n_sources))
+            final_step_locs = np.append(final_step_locs, repeat_final_position)
+            n_sources = len(t_array)
+
+        f = interpolate.interp1d(cumulative_length, pathXY) # location (x,y) as a funciton of arclength (distance traveled along curve)
+        final_pathXY= f(final_step_locs) # compute smooth curve of source's path s
+        
+        # interpolated movement data
+        source_x_array = final_pathXY[0] 
+        source_y_array = final_pathXY[1]
+
+        # now for wind (interpolate)
+        f_windx = interpolate.interp1d(np.linspace(1, len(wind_x), len(wind_x)), wind_x)
+        f_windy = interpolate.interp1d(np.linspace(1, len(wind_y), len(wind_y)), wind_y)
+        final_wind_steps = np.linspace(1, len(wind_x), n_sources)
+        wind_x = f_windx(final_wind_steps)
+        wind_y = f_windy(final_wind_steps)
+        return source_x_array, source_y_array, wind_x, wind_y
+
+    def get_data(self, n):
+        wind_x = np.zeros(n)
+        wind_y = wind_x
+        source_y_array = np.linspace(0,50,n)
+        source_x_array = 10*np.sin(np.linspace(-math.pi, math.pi, n))
+        return source_x_array, source_y_array, wind_x, wind_y
 
 class Human(Source):
-    pass
+    def get_data(self, n):
+        wind_x = np.random.uniform(-0.05,0.05,size=n)
+        wind_y = np.random.uniform(-0.05,0.05,size=n)
+        source_y_array = np.linspace(0,50,n)
+        source_x_array = 10*np.sin(np.linspace(-math.pi, math.pi, n))
+        return source_x_array, source_y_array, wind_x, wind_y
 
-class Dog:
+
+class Agent:
     location = None
     def __init__(self):
         pass
 
+class Dog(Agent):
+    pass
+
 class DiffusionModel:
-    def __init__(self, iterations, step):
-        self.iterations = iterations
-        self.step = step
-        self.source = Human(self.iterations, self.step)
-        self.agent = Dog()
-        self.grid = None
-
-
-def get_data(n):
-    wind_x = np.random.uniform(-0.05,0.05,size=n)
-    wind_y = np.random.uniform(-0.05,0.05,size=n)
-    source_y_array = np.linspace(0,50,n)
-    source_x_array = 10*np.sin(np.linspace(-math.pi, math.pi, n))
-    return source_x_array, source_y_array, wind_x, wind_y
-
-def source_propagation(A, B, D, t_array, save_movie=True, include_agent=True):
-    # get source movement data and wind data
-    source_x_array, source_y_array, wind_x, wind_y = get_data(30) # wind_x and wind_y must have same length
-    pathXY = np.asarray([source_x_array, source_y_array])
+    # used for saving figure
+    fig = None
+    ims = None
     
-    # compute step lengths from data
-    step_lengths = np.sqrt(np.sum(np.power(np.diff(pathXY, axis=1), 2), axis=0))
-    step_lengths = np.insert(step_lengths, 0, 0)
+    def __init__(self, A=2, B=200, D=0.1, dt=1, endtime=275, source=Source(), agent=Agent(), agent_start=20):
+        self.A = A # SOMETHING ABOUT DIFFUSION; i think its concentration at sourcec
+        self.B = B #200 #20 
+        self.D = D
+        self.dt = dt # timestep
+        self.endtime = endtime
+        self.t_array = np.arange(start=0, stop=self.endtime, step= self.dt) # consider converting this to linspace
+
+        self.source = source
+        self.agent = agent
+        self.agent_start = agent_start        
     
-    # interpolate movement between data spointss
-    n_sources = 250
-    cumulative_length = np.cumsum(step_lengths)
-    final_step_locs = np.linspace(0, cumulative_length[-1], n_sources)
-    if(n_sources < len(t_array)):
-        repeat_final_position = np.repeat(cumulative_length[-1], repeats=(len(t_array)-n_sources))
-        final_step_locs = np.append(final_step_locs, repeat_final_position)
-        n_sources = len(t_array)
-    f = interpolate.interp1d(cumulative_length, pathXY) # location (x,y) as a funciton of arclength (distance traveled along curve)
-    final_pathXY= f(final_step_locs) # compute smooth curve of source's path s
-    
-    # interpolated movement data
-    source_x_array = final_pathXY[0] 
-    source_y_array = final_pathXY[1]
-
-    # now for wind (interpolate)
-    
-    f_windx = interpolate.interp1d(np.linspace(1, len(wind_x), len(wind_x)), wind_x)
-    f_windy = interpolate.interp1d(np.linspace(1, len(wind_y), len(wind_y)), wind_y)
-    final_wind_steps = np.linspace(1, len(wind_x), n_sources)
-    wind_x = f_windx(final_wind_steps)
-    wind_y = f_windy(final_wind_steps)
-    # data has been smoothed (via 'linear' interpolation)
-
-    # delta x and delta y
-    dx = 0.5
-    dy = 0.5
-
-    source_x_array = np.floor(source_x_array/dx) # does this NEED to be floored? @ian: maybe un-floor this
-    source_y_array = np.floor(source_y_array/dy)
-
-    extra_space = 10
-    min_x = np.min(source_x_array) - dx*extra_space; max_x = np.max(source_x_array)+ dx*extra_space
-    min_y = np.min(source_y_array) - dy*extra_space; max_y = np.max(source_y_array)+ dy*extra_space
-
-    print(n_sources)
-
-    x,y = np.meshgrid(np.arange(min_x, max_x, dx), np.arange(min_y, max_y, dy))
-
-    # strategy usage
-    percentage_steps_per_strategy1 = 1 #0.5 #(accurate and slow)
-    elements_per_strat1 = math.floor(percentage_steps_per_strategy1*len(t_array))
-    elements_per_strat2 = len(t_array) - elements_per_strat1
-    strategy_array = [np.ones(elements_per_strat1), 2*np.ones(elements_per_strat2)]
-    strategy_array = np.random.permutation(strategy_array) # use strategy randomly (according to proportions)
+    def save(self, save_name, dpi=300):
+        if self.fig is None or self.ims is None:
+            print("error while saving")
+        else:
+            print(f"saving animation as {save_name}")
+            im_ani = animation.ArtistAnimation(self.fig, self.ims, interval=50, repeat_delay=3000)
+            Writer = animation.writers['ffmpeg'] # ['pillow'] can write gifs
+            writer = Writer(fps=15, metadata=dict(artist='Me'))
+            im_ani.save(save_name, writer=writer, dpi=200)
 
 
-    agent_start = 20 # start agent at t = 20
+    def source_propagation(self, save_movie=True, include_agent=True, save_name='animation.mp4', n_sources=250):
+        # get source movement data and wind data
+        # data has been smoothed (via 'linear' interpolation)
+        source_x_array, source_y_array, wind_x, wind_y = self.source.get_interpolated_data(self.t_array, n_sources)
+        n_sources = len(self.t_array) # should we do it like this? or would it be better if we allowed for n_sources and then let time keep going by
+        
+        # delta x and delta y
+        dx = 0.5
+        dy = 0.5
 
-    c = np.zeros(x.shape)
-    fig = plt.figure(figsize=(5,6))
-    ims = []
-    for t_i in range(1,len(t_array)):
-        if(t_i%25 == 0):
-            print(f"{t_i*100/len(t_array)}% done.")
-        t = t_array[t_i]
-        source_activity = np.zeros(n_sources) 
-        # what if len(t_array) > n_sources???? we might need to do a min max dealio or just extend source x array to be length of t_array
-        source_activity[:t_i] = t_array[:t_i]
-        if include_agent and t > agent_start:
-            # find current up the gradient direction
-            pass
-        if save_movie: # ADD ANOTHER OPTION TO WATCH IN REAL TIME vs just save
-            plot = plt.pcolormesh(x,y,c, vmin=0, vmax=3.5)
-            title = plt.text(0,max_y+5,f"t={t_i}",size=20,horizontalalignment='center',verticalalignment='baseline')
-            ims.append([plot,title])
-            # plt.draw()
-            # plt.pause(0.00001)
-            # plt.clf()
+        source_x_array = np.floor(source_x_array/dx) # does this NEED to be floored? @ian: maybe un-floor this
+        source_y_array = np.floor(source_y_array/dy)
+
+        extra_space = 20
+        min_x = np.min(source_x_array) - dx*extra_space; max_x = np.max(source_x_array)+ dx*extra_space
+        min_y = np.min(source_y_array) - dy*extra_space; max_y = np.max(source_y_array)+ dy*extra_space
+
+        # print(n_sources) # how many points are there?
+
+        x,y = np.meshgrid(np.arange(min_x, max_x, dx), np.arange(min_y, max_y, dy))
+
+        # strategy usage
+        percentage_steps_per_strategy1 = 1 #0.5 #(accurate and slow)
+        elements_per_strat1 = math.floor(percentage_steps_per_strategy1*len(self.t_array))
+        elements_per_strat2 = len(self.t_array) - elements_per_strat1
+        strategy_array = [np.ones(elements_per_strat1), 2*np.ones(elements_per_strat2)]
+        strategy_array = np.random.permutation(strategy_array) # use strategy randomly (according to proportions)
+
+
+        agent_start = 20 # start agent at t = 20
+
         c = np.zeros(x.shape)
-        for source_i in range(0,n_sources):
-            if source_activity[source_i] > 0:
-                curr_t = t - source_activity[source_i]
-                curr_c = ((A/(curr_t**0.5))*np.exp(-1*(np.power((x-source_x_array[source_i]-(wind_x[source_i]*curr_t)),2)+
-                np.power((y-source_y_array[source_i])-wind_y[source_i]*curr_t,2))/(4*D*curr_t)))*(0.5**(curr_t/B))
-                c = c + curr_c
-    plt.colorbar()
-    plt.xlabel('x')
-    plt.ylabel('y')
-    im_ani = animation.ArtistAnimation(fig, ims, interval=50, repeat_delay=3000)
-    Writer = animation.writers['ffmpeg'] # ['pillow'] can write gifs
-    writer = Writer(fps=15, metadata=dict(artist='Me'))
-    im_ani.save('animation.mp4', writer=writer)
+        self.fig = plt.figure(figsize=(5,6))
+        self.ims = []
+        for t_i in range(1,len(self.t_array)):
+            if(t_i%25 == 0):
+                print(f"{t_i*100/len(self.t_array)}% done.")
+            t = self.t_array[t_i]
+            source_activity = np.zeros(n_sources) 
+            # what if len(t_array) > n_sources???? we might need to do a min max dealio or just extend source x array to be length of t_array
+            source_activity[:t_i] = self.t_array[:t_i]
+            if include_agent and t > agent_start:
+                # find current up the gradient direction
+                pass
+            if save_movie: # ADD ANOTHER OPTION TO WATCH IN REAL TIME vs just save
+                plot = plt.pcolormesh(x,y,c, vmin=0, vmax=3.5)
+                title = plt.text(0,max_y+5,f"t={t_i}",size=20,horizontalalignment='center',verticalalignment='baseline')
+                self.ims.append([plot,title])
+                # plt.draw()
+                # plt.pause(0.00001)
+                # plt.clf()
+            c = np.zeros(x.shape)
+            for source_i in range(0,n_sources):
+                if source_activity[source_i] > 0:
+                    curr_t = t - source_activity[source_i]
+                    curr_c = ((self.A/(curr_t**0.5))*np.exp(-1*(np.power((x-source_x_array[source_i]-(wind_x[source_i]*curr_t)),2)+
+                    np.power((y-source_y_array[source_i])-wind_y[source_i]*curr_t,2))/(4*self.D*curr_t)))*(0.5**(curr_t/self.B))
+                    c = c + curr_c
+        plt.colorbar()
+        plt.xlabel('x')
+        plt.ylabel('y')
+        self.save(save_name, dpi=300)
 
-A = 2 # SOMETHING ABOUT DIFFUSION
-B=200 #200 #20 
-D=0.1
-dt = 1 # timestep
-endtime = 275
-t_array = np.arange(start=0, stop=endtime, step= dt) # consider converting this to linspace
-source_propagation(A,B,D,t_array)
+model = DiffusionModel(source=Human(), endtime=100)
+model.source_propagation(save_name='animation4.mp4', n_sources=250)
