@@ -62,9 +62,41 @@ class Human(Source):
 
 
 class Agent:
-    location = None
-    def __init__(self):
-        pass
+
+    def __init__(self, x=0, y=0, dx=0.5, mem_internal=25):
+        self.pos_x = 0
+        self.pos_y = 0
+        self.v = dx*5
+
+        self.position_mem_interval = mem_internal
+        self.prev_x = np.zeros(self.position_mem_interval)
+        self.prev_y = np.zeros(self.position_mem_interval)
+        self.curr_c = np.zeros(self.position_mem_interval)
+        self.dir_bias_coef = dx  
+        self.curr_px = 0
+        self.curr_py = 0
+        self.prev_px = 0 
+        self.prev_py = 0
+        self.prev_theta = 0
+        self.curr_c_agent = 0
+    
+    def get_agent_position(self, c, x, y, dx, dy):
+        fx,fy = np.gradient(c,dx,dx)
+        tt = np.floor(x/dx) == np.floor(self.pos_x/dx)
+        ttt = np.floor(y/dy) == np.floor(self.pos_y/dy)
+        indt = tt&ttt
+        if np.linalg.norm([fx[indt], fy[indt]])>0: #0.01
+            self.prev_px = self.curr_px
+            self.prev_py = self.curr_py
+            self.curr_px = fx[indt]/np.linalg.norm([fx[indt], fy[indt]])
+            self.curr_py = fy[indt]/np.linalg.norm([fx[indt], fy[indt]])
+            self.curr_c_agent  = c[indt]
+        else:
+            self.curr_px = 0 
+            self.curr_py = 0
+        self.pos_x = self.pos_x + self.dir_bias_coef*self.curr_px
+        self.pos_y = self.pos_y + self.dir_bias_coef*self.curr_py
+        return self.pos_x, self.pos_y
 
 class Dog(Agent):
     pass
@@ -144,6 +176,10 @@ class DiffusionModel:
             if save_movie: # ADD ANOTHER OPTION TO WATCH IN REAL TIME vs just save
                 plot = plt.pcolormesh(x,y,c, vmin=0, vmax=3.5)
                 title = plt.text(0,max_y+5,f"t={t_i}",size=20,horizontalalignment='center',verticalalignment='baseline')
+                if include_agent and t>agent_start:
+                    a_x,a_y = self.agent.get_agent_position(c, x, y,dx,dy)
+                    agent = plt.scatter(a_x,a_y)
+                    self.ims.append([plot,title, agent])
                 self.ims.append([plot,title])
                 # plt.draw()
                 # plt.pause(0.00001)
@@ -155,10 +191,10 @@ class DiffusionModel:
                     curr_c = ((self.A/(curr_t**0.5))*np.exp(-1*(np.power((x-source_x_array[source_i]-(wind_x[source_i]*curr_t)),2)+
                     np.power((y-source_y_array[source_i])-wind_y[source_i]*curr_t,2))/(4*self.D*curr_t)))*(0.5**(curr_t/self.B))
                     c = c + curr_c
-        plt.colorbar()
+        # plt.colorbar()
         plt.xlabel('x')
         plt.ylabel('y')
         self.save(save_name, dpi=300)
 
-model = DiffusionModel(source=Human(), endtime=100)
+model = DiffusionModel(source=Source(), endtime=100)
 model.source_propagation(save_name='animation4.mp4', n_sources=250)
