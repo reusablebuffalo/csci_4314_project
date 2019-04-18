@@ -83,6 +83,7 @@ class Agent:
         self.theta = np.arctan2(0, 0)
     
     # default agent moves up concentration gradient at speed v
+    # this agent works perfectly when wind = 0, but kind of sucks otherwise, also pretty slow.
     def get_agent_position(self, c, x, y, dx, dy):
         fy,fx = np.gradient(c,dx,dx) # fy before fx
         tt = np.floor(x/dx) == np.floor(self.pos_x/dx)
@@ -186,6 +187,7 @@ class DiffusionModel:
         n_sources = len(self.t_array) # should we do it like this? or would it be better if we allowed for n_sources and then let time keep going by
         
         # delta x and delta y
+        # make smaller for smoother grid
         dx = 0.5
         dy = 0.5
 
@@ -213,7 +215,7 @@ class DiffusionModel:
         c = np.zeros(x.shape)
         self.fig = plt.figure(figsize=(5,6))
         self.ims = []
-        for t_i in range(1,len(self.t_array)):
+        for t_i in range(0,len(self.t_array)):
             if(t_i%25 == 0):
                 print(f"{t_i*100/len(self.t_array)}% done.")
             t = self.t_array[t_i]
@@ -225,13 +227,14 @@ class DiffusionModel:
                 pass
             if save_movie: # ADD ANOTHER OPTION TO WATCH IN REAL TIME vs just save
                 plot = plt.pcolormesh(x,y,c, vmin=0, vmax=5)
-                title = plt.text(0,max_y+5,f"t={t_i}",size=20,horizontalalignment='center',verticalalignment='baseline')
+                title = plt.text(0,max_y+5,f"t={t_i+1}",size=20,horizontalalignment='center',verticalalignment='baseline')
+                target_point = plt.scatter(source_x_array[t_i],source_y_array[t_i], c='red', s=5)
                 if include_agent and t>agent_start:
-                    a_x,a_y = self.agent.get_agent_position(c, x, y, dx, dy)
-                    agent_plot = plt.scatter(a_x,a_y, c='black')
-                    self.ims.append([plot,title,agent_plot])
+                    a_x, a_y = self.agent.get_agent_position(c, x, y, dx, dy)
+                    agent_point = plt.scatter(a_x, a_y, c='black', s=15)
+                    self.ims.append([plot, title, agent_point, target_point])
                 else:
-                    self.ims.append([plot,title])
+                    self.ims.append([plot, title, target_point])
                 # plt.draw()
                 # plt.pause(0.00001)
                 # plt.clf()
