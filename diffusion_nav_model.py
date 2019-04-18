@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import math
 import matplotlib.animation as animation
+import random
 
 
 class Source:
@@ -76,8 +77,10 @@ class Agent:
         self.curr_py = 0
         self.prev_px = 0 
         self.prev_py = 0
-        # self.prev_theta = 0
+        self.prev_theta = 0
         self.curr_c_agent = 0
+        self.sigma02 = np.pi
+        self.theta = np.arctan2(0, 0)
     
     # default agent moves up concentration gradient at speed v
     def get_agent_position(self, c, x, y, dx, dy):
@@ -100,7 +103,50 @@ class Agent:
         return self.pos_x, self.pos_y
 
 class Curtis(Agent):
-    pass
+    #my attempt at a correlated random walk
+    #taken partly from hw#2 and orit's starter code
+
+    #i think this is a CRW? at every step
+
+    def get_agent_position(self, c, x, y, dx, dy, t_i):
+
+        #need to change this to a UNIFORM distribution
+        choice = random.randint(1,3)
+        # print(choice)
+        #NEED TO ADD function to switch between two strategies
+        #unsure why rand(1,1)
+        if choice == 1:
+            # print('ENTER')
+            self.theta = self.prev_theta + self.sigma02 * random.uniform(0,1)
+            # print(self.theta)
+        elif choice == 2:
+            self.theta = self.prev_theta - self.sigma02 * random.uniform(0,1)
+        # else:
+        #     pass
+        # print(self.theta)
+        # print(np.sin(self.theta))
+        self.pos_x = self.pos_x + self.v * np.cos(self.theta)
+        # print(self.pos_x)
+        self.pos_y = self.pos_y + self.v * np.sin(self.theta)
+        # print(self.pos_y)
+        return self.pos_x, self.pos_y
+
+    #We need to ask Orit how she was using this in her original code
+    # def CRW(N, realizations, NreS, v, sigma02, x_initial, y_initial, theta_initial):
+    #     x = np.zeros([realizations, n])
+    #     y = np.zeros([realizations, n])
+    #     theta = zeros([realizations, n])
+
+    #     #no idea what NreS is?
+    #     x[:,0] = x_initial
+    #     y[:,0] = y_initial
+    #     theta[:,0] = theta_initial
+
+    #     for realization_i in range(realizations):
+    #         for step_i in range(1, N):
+    #             if step_i%NreS == 0:
+
+
 
 class Ian(Agent):
     pass # maybe add an agent with momentum
@@ -181,7 +227,8 @@ class DiffusionModel:
                 plot = plt.pcolormesh(x,y,c, vmin=0, vmax=5)
                 title = plt.text(0,max_y+5,f"t={t_i}",size=20,horizontalalignment='center',verticalalignment='baseline')
                 if include_agent and t>agent_start:
-                    a_x,a_y = self.agent.get_agent_position(c, x, y,dx,dy)
+                    # print(t_i)
+                    a_x,a_y = self.agent.get_agent_position(c, x, y, dx, dy, t_i)
                     agent_plot = plt.scatter(a_x,a_y, c='black')
                     self.ims.append([plot,title,agent_plot])
                 self.ims.append([plot,title])
@@ -200,5 +247,5 @@ class DiffusionModel:
         plt.ylabel('y')
         self.save(save_name, dpi=200)
 
-model = DiffusionModel(source=Source(), agent=Agent(v_multiplier=3), endtime=275)
-model.source_propagation(save_name='animation4.mp4', n_sources=250)
+model = DiffusionModel(source=Source(), agent=Curtis(v_multiplier=3), endtime=275)
+model.source_propagation(save_name='animation_test.mp4', n_sources=250)
