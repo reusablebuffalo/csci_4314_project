@@ -108,7 +108,7 @@ class Curtis(Agent):
 
     #i think this is a CRW? at every step
 
-    def get_agent_position(self, c, x, y, dx, dy, t_i):
+    def get_agent_position(self, c, x, y, dx, dy):
 
         #need to change this to a UNIFORM distribution
         choice = random.randint(1,3)
@@ -211,7 +211,7 @@ class DiffusionModel:
         agent_start = 20 # start agent at t = 20
 
         c = np.zeros(x.shape)
-        self.fig = plt.figure(figsize=(10,12))
+        self.fig = plt.figure(figsize=(5,6))
         self.ims = []
         for t_i in range(1,len(self.t_array)):
             if(t_i%25 == 0):
@@ -227,11 +227,11 @@ class DiffusionModel:
                 plot = plt.pcolormesh(x,y,c, vmin=0, vmax=5)
                 title = plt.text(0,max_y+5,f"t={t_i}",size=20,horizontalalignment='center',verticalalignment='baseline')
                 if include_agent and t>agent_start:
-                    # print(t_i)
-                    a_x,a_y = self.agent.get_agent_position(c, x, y, dx, dy, t_i)
+                    a_x,a_y = self.agent.get_agent_position(c, x, y, dx, dy)
                     agent_plot = plt.scatter(a_x,a_y, c='black')
                     self.ims.append([plot,title,agent_plot])
-                self.ims.append([plot,title])
+                else:
+                    self.ims.append([plot,title])
                 # plt.draw()
                 # plt.pause(0.00001)
                 # plt.clf()
