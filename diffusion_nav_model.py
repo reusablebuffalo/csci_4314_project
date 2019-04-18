@@ -112,7 +112,7 @@ class Curtis(Agent):
     def get_agent_position(self, c, x, y, dx, dy):
 
         #need to change this to a UNIFORM distribution
-        choice = random.randint(1,3)
+        choice = np.floor(random.uniform(0,1) * 3) + 1
         # print(choice)
         #NEED TO ADD function to switch between two strategies
         #unsure why rand(1,1)
