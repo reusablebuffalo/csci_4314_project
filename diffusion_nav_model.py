@@ -81,11 +81,6 @@ class Agent:
         self.pos_y = 0
         self.v = dx*v_multiplier
 
-        # self.position_mem_interval = mem_internal
-        # self.prev_x = np.zeros(self.position_mem_interval)
-        # self.prev_y = np.zeros(self.position_mem_interval)
-        # self.curr_c = np.zeros(self.position_mem_interval)
-        # self.dir_bias_coef = dx  
         self.curr_px = 0
         self.curr_py = 0
         self.prev_px = 0 
@@ -119,10 +114,25 @@ class Agent:
 class Curtis(Agent):
     #my attempt at a correlated random walk
     #taken from a portion of Orit Peleg's starter code
+    def __init__(self, strat_probs=[0.5,0.5], **kwds):
+        """
+        :param strat_probs: list of length two for probability for each of two strategies ['chemotaxis','crw']
+        """
+        super().__init__(**kwds)
+        self.strat_probs = strat_probs
+    
+    def get_agent_position(self, c, x, y, dx, dy):
+        strat = np.random.choice(['chemotaxis', 'crw'], p=self.strat_probs)
+
+        if strat == 'chemotaxis':
+            return self.chemotaxis(c,x,y,dx,dy)
+        elif strat == 'crw':
+            return self.crw(c,x,y,dx,dy)
+        else:
+            raise ValueError(f"No strategy called {strat}")
 
     #This is a correlated random walk
     def crw(self, c, x, y, dx, dy):
-
         #need to change this to a UNIFORM distribution
         choice = np.floor(random.uniform(0,1) * 3) + 1
         # print(choice)
@@ -132,13 +142,10 @@ class Curtis(Agent):
         elif choice == 2:
             self.theta = self.prev_theta - self.sigma02 * random.uniform(0,1)
         else:
-            pass
-        # print(self.theta)
-        # print(np.sin(self.theta))
+            pass # we only want this pass option if we want it to move forward 1/3 of the time
+            # raise ValueError('no such choice')
         self.pos_x = self.pos_x + self.v * np.cos(self.theta)
-        # print(self.pos_x)
         self.pos_y = self.pos_y + self.v * np.sin(self.theta)
-        # print(self.pos_y)
         return self.pos_x, self.pos_y
 
     def chemotaxis(self, c, x, y, dx, dy):
@@ -160,23 +167,6 @@ class Curtis(Agent):
         self.pos_y = self.pos_y + self.v*self.curr_py
         return self.pos_x, self.pos_y
 
-    #We need to ask Orit how she was using this in her original code
-    # def CRW(N, realizations, NreS, v, sigma02, x_initial, y_initial, theta_initial):
-    #     x = np.zeros([realizations, n])
-    #     y = np.zeros([realizations, n])
-    #     theta = zeros([realizations, n])
-
-    #     #no idea what NreS is?
-    #     x[:,0] = x_initial
-    #     y[:,0] = y_initial
-    #     theta[:,0] = theta_initial
-
-    #     for realization_i in range(realizations):
-    #         for step_i in range(1, N):
-    #             if step_i%NreS == 0:
-
-
-
 class Ian(Agent):
     pass # maybe add an agent with momentum
 
@@ -193,23 +183,10 @@ class DiffusionModel:
         self.endtime = endtime
         self.t_array = np.arange(start=0, stop=self.endtime, step= self.dt) # consider converting this to linspace
         
-        #self.strategy_array creates a random mix of chemotaxis vs. crw
-        self.strategy_array = np.random.randint(2, size = len(self.t_array))
-
-
         #TODO: add in method to have 
         self.source = source
         self.agent = agent
-        self.agent_start = agent_start        
-
-    #e.g. 60% as a parameter translates to 60% chemotaxis in overall strategy
-    def chemoPercentage(self, percentage):
-        n_chemo_iterations = int(percentage*len(self.t_array))
-        strategy_array = [1] * len(self.t_array)
-        for i in range(n_chemo_iterations):
-            strategy_array[i] = 0
-        random.shuffle(strategy_array)
-        return strategy_array
+        self.agent_start = agent_start 
 
     def save(self, save_name, dpi=300):
         if self.fig is None or self.ims is None:
@@ -244,22 +221,10 @@ class DiffusionModel:
 
         x,y = np.meshgrid(np.arange(min_x, max_x, dx), np.arange(min_y, max_y, dy))
 
-        # strategy usage
-        percentage_steps_per_strategy1 = 1 #0.5 #(accurate and slow)
-        elements_per_strat1 = math.floor(percentage_steps_per_strategy1*len(self.t_array))
-        elements_per_strat2 = len(self.t_array) - elements_per_strat1
-        strategy_array = [np.ones(elements_per_strat1), 2*np.ones(elements_per_strat2)]
-        strategy_array = np.random.permutation(strategy_array) # use strategy randomly (according to proportions)
-
-
-        agent_start = 20 # start agent at t = 20
-
         c = np.zeros(x.shape)
         self.fig = plt.figure(figsize=(5,6))
         self.ims = []
 
-        #input of 0.5 means 50% chemotaxis and 50% crw
-        self.strategy_array = self.chemoPercentage(0.5)
         for t_i in range(0,len(self.t_array)):
             if(t_i%25 == 0):
                 print(f"{t_i*100/len(self.t_array)}% done.")
@@ -267,27 +232,17 @@ class DiffusionModel:
             source_activity = np.zeros(n_sources) 
             # what if len(t_array) > n_sources???? we might need to do a min max dealio or just extend source x array to be length of t_array
             source_activity[:t_i] = self.t_array[:t_i]
-            if include_agent and t > agent_start:
-                # find current up the gradient direction
-                pass
+
+            # move agent step here (we need option to not include in movie)
+
             if save_movie: # ADD ANOTHER OPTION TO WATCH IN REAL TIME vs just save
                 plot = plt.pcolormesh(x,y,c, vmin=0, vmax=5)
-                title = plt.text(0,max_y+5,f"t={t_i+1}",size=20,horizontalalignment='center',verticalalignment='baseline')
-                target_point = plt.scatter(source_x_array[t_i],source_y_array[t_i], c='red', s=5)
-                if include_agent and t>agent_start:
-
-                    #0 in the strategy array indicates chemotaxis
-                    if self.strategy_array[t_i] == 0:
-                        a_x, a_y = self.agent.chemotaxis(c, x, y, dx, dy)
-                        agent_point = plt.scatter(a_x, a_y, c='black', s=15)
-                        self.ims.append([plot, title, agent_point, target_point])
-                    elif self.strategy_array[t_i] == 1:
-                        a_x, a_y = self.agent.crw(c, x, y, dx, dy)
-                        agent_point = plt.scatter(a_x, a_y, c='black', s=15)
-                        self.ims.append([plot, title, agent_point, target_point])
-                    else:
-                        raise ValueExceptionError()
-
+                title = plt.text(0, max_y+5, f"t={t_i+1}", size=20, horizontalalignment='center', verticalalignment='baseline')
+                target_point = plt.scatter(source_x_array[t_i], source_y_array[t_i], c='red', s=5)
+                if include_agent and t>self.agent_start:
+                    a_x, a_y = self.agent.get_agent_position(c, x, y, dx, dy)
+                    agent_point = plt.scatter(a_x, a_y, c='black', s=15)
+                    self.ims.append([plot, title, agent_point, target_point])
                 else:
                     self.ims.append([plot, title, target_point])
                 # plt.draw()
@@ -305,5 +260,5 @@ class DiffusionModel:
         plt.ylabel('y')
         self.save(save_name, dpi=200)
 
-model = DiffusionModel(source=Source(), agent=Curtis(v_multiplier=3), endtime=275)
+model = DiffusionModel(source=Source(), agent=Curtis(v_multiplier=1, strat_probs=[0,1]), endtime=50)
 model.source_propagation(save_name='animation_test.mp4', n_sources=250)
