@@ -9,6 +9,19 @@ import math
 import matplotlib.animation as animation
 import random
 
+#A is how much substance you have a time 0
+#B is the decay rate
+#D is diffusion rate
+
+#fix d a and b parameters 
+#play with ratio of chemotaxis and just random walk (random mix)
+
+#explore speed:
+#slower speed for chemotaxis
+
+#fix wind
+
+#set time 
 
 class Source:
     def __init__(self):
@@ -105,31 +118,46 @@ class Agent:
 
 class Curtis(Agent):
     #my attempt at a correlated random walk
-    #taken partly from hw#2 and orit's starter code
+    #taken from a portion of Orit Peleg's starter code
 
-    #i think this is a CRW? at every step
-
-    def get_agent_position(self, c, x, y, dx, dy):
+    #This is a correlated random walk
+    def crw(self, c, x, y, dx, dy):
 
         #need to change this to a UNIFORM distribution
         choice = np.floor(random.uniform(0,1) * 3) + 1
         # print(choice)
         #NEED TO ADD function to switch between two strategies
-        #unsure why rand(1,1)
         if choice == 1:
-            # print('ENTER')
             self.theta = self.prev_theta + self.sigma02 * random.uniform(0,1)
-            # print(self.theta)
         elif choice == 2:
             self.theta = self.prev_theta - self.sigma02 * random.uniform(0,1)
-        # else:
-        #     pass
+        else:
+            pass
         # print(self.theta)
         # print(np.sin(self.theta))
         self.pos_x = self.pos_x + self.v * np.cos(self.theta)
         # print(self.pos_x)
         self.pos_y = self.pos_y + self.v * np.sin(self.theta)
         # print(self.pos_y)
+        return self.pos_x, self.pos_y
+
+    def chemotaxis(self, c, x, y, dx, dy):
+        fy,fx = np.gradient(c,dx,dx) # fy before fx
+        tt = np.floor(x/dx) == np.floor(self.pos_x/dx)
+        ttt = np.floor(y/dy) == np.floor(self.pos_y/dy)
+        indt = tt&ttt # where is agent
+        norm =np.linalg.norm([fx[indt], fy[indt]])
+        if norm>0: #0.01
+            self.prev_px = self.curr_px
+            self.prev_py = self.curr_py
+            self.curr_px = fx[indt][0]/norm
+            self.curr_py = fy[indt][0]/norm
+            self.curr_c_agent  = c[indt]
+        else:
+            self.curr_px = 0 
+            self.curr_py = 0
+        self.pos_x = self.pos_x + self.v*self.curr_px
+        self.pos_y = self.pos_y + self.v*self.curr_py
         return self.pos_x, self.pos_y
 
     #We need to ask Orit how she was using this in her original code
@@ -164,6 +192,9 @@ class DiffusionModel:
         self.dt = dt # timestep
         self.endtime = endtime
         self.t_array = np.arange(start=0, stop=self.endtime, step= self.dt) # consider converting this to linspace
+        
+        #self.strategy_array creates a random mix of chemotaxis vs. crw
+        self.strategy_array = np.random.randint(2, size = len(self.t_array))
 
         self.source = source
         self.agent = agent
@@ -215,6 +246,11 @@ class DiffusionModel:
         c = np.zeros(x.shape)
         self.fig = plt.figure(figsize=(5,6))
         self.ims = []
+
+
+
+
+
         for t_i in range(0,len(self.t_array)):
             if(t_i%25 == 0):
                 print(f"{t_i*100/len(self.t_array)}% done.")
@@ -230,9 +266,19 @@ class DiffusionModel:
                 title = plt.text(0,max_y+5,f"t={t_i+1}",size=20,horizontalalignment='center',verticalalignment='baseline')
                 target_point = plt.scatter(source_x_array[t_i],source_y_array[t_i], c='red', s=5)
                 if include_agent and t>agent_start:
-                    a_x, a_y = self.agent.get_agent_position(c, x, y, dx, dy)
-                    agent_point = plt.scatter(a_x, a_y, c='black', s=15)
-                    self.ims.append([plot, title, agent_point, target_point])
+
+                    #0 in the strategy array indicates chemotaxis
+                    if self.strategy_array[t_i] == 0:
+                        a_x, a_y = self.agent.chemotaxis(c, x, y, dx, dy)
+                        agent_point = plt.scatter(a_x, a_y, c='black', s=15)
+                        self.ims.append([plot, title, agent_point, target_point])
+                    elif self.strategy_array[t_i] == 1:
+                        a_x, a_y = self.agent.crw(c, x, y, dx, dy)
+                        agent_point = plt.scatter(a_x, a_y, c='black', s=15)
+                        self.ims.append([plot, title, agent_point, target_point])
+                    else:
+                        raise ValueExceptionError()
+
                 else:
                     self.ims.append([plot, title, target_point])
                 # plt.draw()
