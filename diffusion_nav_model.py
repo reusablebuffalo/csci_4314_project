@@ -196,10 +196,21 @@ class DiffusionModel:
         #self.strategy_array creates a random mix of chemotaxis vs. crw
         self.strategy_array = np.random.randint(2, size = len(self.t_array))
 
+
+        #TODO: add in method to have 
         self.source = source
         self.agent = agent
         self.agent_start = agent_start        
-    
+
+    #e.g. 60% as a parameter translates to 60% chemotaxis in overall strategy
+    def chemoPercentage(self, percentage):
+        n_chemo_iterations = int(percentage*len(self.t_array))
+        strategy_array = [1] * len(self.t_array)
+        for i in range(n_chemo_iterations):
+            strategy_array[i] = 0
+        random.shuffle(strategy_array)
+        return strategy_array
+
     def save(self, save_name, dpi=300):
         if self.fig is None or self.ims is None:
             print("error while saving")
@@ -247,7 +258,8 @@ class DiffusionModel:
         self.fig = plt.figure(figsize=(5,6))
         self.ims = []
 
-
+        self.strategy_array = self.chemoPercentage(0.5)
+        print(self.strategy_array)
 
 
 
