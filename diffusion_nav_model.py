@@ -258,11 +258,8 @@ class DiffusionModel:
         self.fig = plt.figure(figsize=(5,6))
         self.ims = []
 
+        #input of 0.5 means 50% chemotaxis and 50% crw
         self.strategy_array = self.chemoPercentage(0.5)
-        print(self.strategy_array)
-
-
-
         for t_i in range(0,len(self.t_array)):
             if(t_i%25 == 0):
                 print(f"{t_i*100/len(self.t_array)}% done.")
