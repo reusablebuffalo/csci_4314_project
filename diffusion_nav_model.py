@@ -87,7 +87,7 @@ class Agent:
 
         self.curr_px = 0
         self.curr_py = 0
-        self.prev_theta = 0
+        self.bias_theta = np.pi/2
         self.curr_c_agent = 0
         self.sigma02 = np.pi/32 # np.pi
         self.theta = np.pi*(4.0/3)
@@ -127,11 +127,13 @@ class Curtis(Agent):
         self.strat_change = False
     
     def get_agent_position(self, c, x, y, dx, dy):
-        strat = np.random.choice(['chemotaxis', 'crw'], p=self.strat_probs)
+        strat = np.random.choice(['chemotaxis', 'crw','brw'], p=self.strat_probs)
         if strat == 'chemotaxis':
             return self.chemotaxis(c,x,y,dx,dy)
         elif strat == 'crw':
             return self.crw(c,x,y,dx,dy)
+        elif strat == 'brw':
+            return self.brw(c,x,y,dx,dy)
         else:
             raise ValueError(f"No strategy called {strat}")
 
@@ -139,23 +141,21 @@ class Curtis(Agent):
     #we need to change this to a crw
 
     def brw(self, c, x, y, dx, dy):
-
         #Changed to have to move in either direction
         choice = np.floor(random.uniform(0,1) * 2) + 1
         if choice == 1:
-            self.theta = self.prev_theta + self.sigma02 * random.uniform(0,1)
+            self.theta = self.bias_theta + self.sigma02 * random.uniform(0,1)
         elif choice == 2:
-            self.theta = self.prev_theta - self.sigma02 * random.uniform(0,1)
+            self.theta = self.bias_theta - self.sigma02 * random.uniform(0,1)
         else:
             raise ValueError('no such choice')
-        self.pos_x = self.pos_x + self.v * np.cos(self.theta)
-        self.pos_y = self.pos_y + self.v * np.sin(self.theta)
+        self.pos_x = self.pos_x + self.get_v('brw') * np.cos(self.theta)
+        self.pos_y = self.pos_y + self.get_v('brw') * np.sin(self.theta)
         return self.pos_x, self.pos_y
 
     def crw(self, c, x, y, dx, dy):
 
         #Changed to have to move in either direction
-        self.theta = self.prev_theta
         choice = np.floor(random.uniform(0,1) * 2) + 1
         if choice == 1:
             self.theta = self.theta + self.sigma02 * random.uniform(0,1)
@@ -182,8 +182,7 @@ class Curtis(Agent):
             self.curr_py = 0
         self.pos_x = self.pos_x + self.get_v('chemotaxis')*self.curr_px
         self.pos_y = self.pos_y + self.get_v('chemotaxis')*self.curr_py
-        self.prev_theta = np.arctan2(self.curr_px, self.curr_py)
-        self.theta = self.prev_theta
+        self.theta = np.arctan2(self.curr_px, self.curr_py)
 
         return self.pos_x, self.pos_y
 
@@ -265,7 +264,7 @@ class DiffusionModel:
                     c = c + curr_c
             cs.append(c)
         print("saving")
-        np.savez(f"diffusion{self.endtime}.npz", x=x, y=y, cs=np.asarray(cs), s_x=s_x, s_y=s_y)
+        np.savez(f"diffusion.npz", x=x, y=y, cs=np.asarray(cs), s_x=s_x, s_y=s_y)
     
     @staticmethod
     def dist(x1,y1,x2,y2):
@@ -275,16 +274,18 @@ class DiffusionModel:
         try:
             if new_source_prop:
                 raise IOError
-            data = np.load(f"diffusion{self.endtime}.npz")
-            # print("No Source Simulation Necessary")
+            data = np.load(f"diffusion.npz")
+            print("No Source Simulation Necessary")
         except IOError as error:
             print("Propagating Source")
             self.source_propagation(n_sources=n_sources)
-            data = np.load(f"diffusion{self.endtime}.npz")
+            data = np.load(f"diffusion.npz")
         finally:
             x = data['x']
             y = data['y']
             cs = data['cs']
+            if cs.shape[0] < len(self.t_array):
+                raise Exception("need new_source_prop")
             s_x = data['s_x']
             s_y = data['s_y']
 
@@ -296,8 +297,8 @@ class DiffusionModel:
             d = None
             t = None
             for t_i in range(0,len(self.t_array)):
-                # if(t_i%25 == 0):
-                    # print(f"Agent Tracking: {t_i*100/len(self.t_array)}% done.")
+                if(t_i%25 == 0):
+                    print(f"Agent Tracking: {t_i*100/len(self.t_array)}% done.")
                     # print(d,t)
                 t = self.t_array[t_i]
                 c = cs[t_i]
@@ -330,12 +331,15 @@ class DiffusionModel:
             return d, t
 
 min_i, min_d = 10000, 10000
-for i in np.linspace(0,1,20):
-    model = DiffusionModel(source=Source(), agent=Curtis(v_multiplier={'chemotaxis':1,'crw':2}, strat_probs=[i,1-i]), endtime=400)
-    d,t = model.run_simulation(save_name='animation_test.mp4', new_source_prop=False, save_movie=False) # n_sources could be smaller
-    if d < min_d:
-        min_i = i
-        min_d = d
-    
-print(min_i, min_d)
+# for i in np.linspace(0,1,20):
+#     model = DiffusionModel(source=Source(), agent=Curtis(v_multiplier={'chemotaxis':1,'crw':2, 'brw':2}, strat_probs=[i,1-i,0]), endtime=400)
+#     d,t = model.run_simulation(save_name='animation_test.mp4', new_source_prop=False, save_movie=False) # n_sources could be smaller
+#     if d < min_d:
+#         min_i = i
+#         min_d = d 
+# print(min_i, min_d)
+
+model = DiffusionModel(source=Human(), agent=Curtis(v_multiplier={'chemotaxis':1,'crw':2, 'brw':2}, strat_probs=[0.9,0.1,0]), endtime=400)
+d,t = model.run_simulation(save_name='animation_test.mp4', new_source_prop=False, save_movie=True) # n_sources could be smaller
+
 # the source simulation doesn't actually change so maybe we could do multiple agents on same simulation
