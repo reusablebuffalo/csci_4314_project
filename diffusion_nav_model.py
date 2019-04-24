@@ -88,7 +88,7 @@ class Agent:
         self.prev_theta = 0
         self.curr_c_agent = 0
         self.sigma02 = np.pi
-        self.theta = np.arctan2(0, 0)
+        self.theta = 0
     
     # default agent moves up concentration gradient at speed v
     # this agent works perfectly when wind = 0, but kind of sucks otherwise, also pretty slow.
@@ -120,10 +120,10 @@ class Curtis(Agent):
         """
         super().__init__(**kwds)
         self.strat_probs = strat_probs
+        self.strat_change = False
     
     def get_agent_position(self, c, x, y, dx, dy):
         strat = np.random.choice(['chemotaxis', 'crw'], p=self.strat_probs)
-
         if strat == 'chemotaxis':
             return self.chemotaxis(c,x,y,dx,dy)
         elif strat == 'crw':
@@ -131,19 +131,34 @@ class Curtis(Agent):
         else:
             raise ValueError(f"No strategy called {strat}")
 
-    #This is a correlated random walk
-    def crw(self, c, x, y, dx, dy):
-        #need to change this to a UNIFORM distribution
-        choice = np.floor(random.uniform(0,1) * 3) + 1
-        # print(choice)
-        #NEED TO ADD function to switch between two strategies
+    #this is currently a biased random walk, my mistake
+    #we need to change this to a crw
+
+    def brw(self, c, x, y, dx, dy):
+
+        #Changed to have to move in either direction
+        choice = np.floor(random.uniform(0,1) * 2) + 1
         if choice == 1:
             self.theta = self.prev_theta + self.sigma02 * random.uniform(0,1)
         elif choice == 2:
             self.theta = self.prev_theta - self.sigma02 * random.uniform(0,1)
         else:
-            pass # we only want this pass option if we want it to move forward 1/3 of the time
-            # raise ValueError('no such choice')
+            raise ValueError('no such choice')
+        self.pos_x = self.pos_x + self.v * np.cos(self.theta)
+        self.pos_y = self.pos_y + self.v * np.sin(self.theta)
+        return self.pos_x, self.pos_y
+
+    def crw(self, c, x, y, dx, dy):
+
+        #Changed to have to move in either direction
+        self.theta = self.prev_theta
+        choice = np.floor(random.uniform(0,1) * 2) + 1
+        if choice == 1:
+            self.theta = self.theta + self.sigma02 * random.uniform(0,1)
+        elif choice == 2:
+            self.theta = self.theta - self.sigma02 * random.uniform(0,1)
+        else:
+            raise ValueError('no such choice')
         self.pos_x = self.pos_x + self.v * np.cos(self.theta)
         self.pos_y = self.pos_y + self.v * np.sin(self.theta)
         return self.pos_x, self.pos_y
@@ -165,6 +180,9 @@ class Curtis(Agent):
             self.curr_py = 0
         self.pos_x = self.pos_x + self.v*self.curr_px
         self.pos_y = self.pos_y + self.v*self.curr_py
+        self.prev_theta = np.arctan2(self.curr_px, self.curr_py)
+        self.theta = self.prev_theta
+
         return self.pos_x, self.pos_y
 
 class Ian(Agent):
@@ -183,7 +201,6 @@ class DiffusionModel:
         self.endtime = endtime
         self.t_array = np.arange(start=0, stop=self.endtime, step= self.dt) # consider converting this to linspace
         
-        #TODO: add in method to have 
         self.source = source
         self.agent = agent
         self.agent_start = agent_start 
@@ -260,5 +277,5 @@ class DiffusionModel:
         plt.ylabel('y')
         self.save(save_name, dpi=200)
 
-model = DiffusionModel(source=Source(), agent=Curtis(v_multiplier=1, strat_probs=[0,1]), endtime=50)
+model = DiffusionModel(source=Source(), agent=Curtis(v_multiplier=1, strat_probs=[0,1]), endtime=275)
 model.source_propagation(save_name='animation_test.mp4', n_sources=250)
