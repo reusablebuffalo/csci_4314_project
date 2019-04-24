@@ -4,8 +4,6 @@
 import numpy as np
 from scipy import interpolate
 import matplotlib.pyplot as plt
-import matplotlib.colors as colors
-import math
 import matplotlib.animation as animation
 import random
 
@@ -69,33 +67,34 @@ class Source:
         wind_x = np.zeros(n)
         wind_y = wind_x
         source_y_array = np.linspace(0,50,n)
-        source_x_array = 10*np.sin(np.linspace(-math.pi, math.pi, n))
+        source_x_array = 10*np.sin(np.linspace(-np.pi, np.pi, n))
         return source_x_array, source_y_array, wind_x, wind_y
 
 class Human(Source):
     def get_data(self, n):
         wind_x = np.random.uniform(-0.05,0.05,size=n)
         wind_y = np.random.uniform(-0.05,0.05,size=n)
-        source_y_array = np.linspace(0,25,n)
-        source_x_array = 10*np.sin(np.linspace(-math.pi, math.pi, n))
+        source_y_array = np.linspace(0,50,n)
+        source_x_array = 10*np.sin(np.linspace(-np.pi, np.pi, n))
         return source_x_array, source_y_array, wind_x, wind_y
 
 
 class Agent:
-    def __init__(self, x=0, y=0, dx=0.5, mem_internal=25, v_multiplier=5):
+    def __init__(self, x=0, y=0, dx=0.5, mem_internal=25, v_multiplier={}):
         self.pos_x = 0
         self.pos_y = 0
-        self.v = dx*v_multiplier
+        self.v = v_multiplier
 
         self.curr_px = 0
         self.curr_py = 0
-        self.prev_px = 0 
-        self.prev_py = 0
         self.prev_theta = 0
         self.curr_c_agent = 0
-        self.sigma02 = np.pi
-        self.theta = 0
+        self.sigma02 = np.pi/32 # np.pi
+        self.theta = np.pi*(4.0/3)
     
+    def get_v(self, strategy):
+        return self.v.get(strategy,1)
+
     # default agent moves up concentration gradient at speed v
     # this agent works perfectly when wind = 0, but kind of sucks otherwise, also pretty slow.
     def get_agent_position(self, c, x, y, dx, dy):
@@ -105,17 +104,16 @@ class Agent:
         indt = tt&ttt # where is agent
         norm =np.linalg.norm([fx[indt], fy[indt]])
         if norm>0: #0.01
-            self.prev_px = self.curr_px
-            self.prev_py = self.curr_py
             self.curr_px = fx[indt][0]/norm
             self.curr_py = fy[indt][0]/norm
             self.curr_c_agent  = c[indt]
         else:
             self.curr_px = 0 
             self.curr_py = 0
-        self.pos_x = self.pos_x + self.v*self.curr_px
-        self.pos_y = self.pos_y + self.v*self.curr_py
+        self.pos_x = self.pos_x + self.get_v('default')*self.curr_px
+        self.pos_y = self.pos_y + self.get_v('default')*self.curr_py
         return self.pos_x, self.pos_y
+    
 
 class Curtis(Agent):
     #my attempt at a correlated random walk
@@ -165,8 +163,8 @@ class Curtis(Agent):
             self.theta = self.theta - self.sigma02 * random.uniform(0,1)
         else:
             raise ValueError('no such choice')
-        self.pos_x = self.pos_x + self.v * np.cos(self.theta)
-        self.pos_y = self.pos_y + self.v * np.sin(self.theta)
+        self.pos_x = self.pos_x + self.get_v('crw') * np.cos(self.theta)
+        self.pos_y = self.pos_y + self.get_v('crw') * np.sin(self.theta)
         return self.pos_x, self.pos_y
 
     def chemotaxis(self, c, x, y, dx, dy):
@@ -176,16 +174,14 @@ class Curtis(Agent):
         indt = tt&ttt # where is agent
         norm =np.linalg.norm([fx[indt], fy[indt]])
         if norm>0: #0.01
-            self.prev_px = self.curr_px
-            self.prev_py = self.curr_py
             self.curr_px = fx[indt][0]/norm
             self.curr_py = fy[indt][0]/norm
             self.curr_c_agent  = c[indt]
         else:
             self.curr_px = 0 
             self.curr_py = 0
-        self.pos_x = self.pos_x + self.v*self.curr_px
-        self.pos_y = self.pos_y + self.v*self.curr_py
+        self.pos_x = self.pos_x + self.get_v('chemotaxis')*self.curr_px
+        self.pos_y = self.pos_y + self.get_v('chemotaxis')*self.curr_py
         self.prev_theta = np.arctan2(self.curr_px, self.curr_py)
         self.theta = self.prev_theta
 
@@ -198,11 +194,16 @@ class DiffusionModel:
     # used for saving figure
     fig = None
     ims = None
+    # delta x and delta y
+    # make smaller for smoother grid
+    dx = 0.5
+    dy = 0.5
+    max_y = 115
     
     def __init__(self, A=2, B=200, D=0.1, dt=1, endtime=275, source=Source(), agent=Agent(), agent_start=20):
         self.A = A # A is how much substance you have a time 0
         self.B = B # 200 #20 # B is the decay rate
-        self.D = D # D is diffusion rate
+        self.D = D # D is diffusion rate # 0.1 default
         self.dt = dt # timestep
         self.endtime = endtime
         self.t_array = np.arange(start=0, stop=self.endtime, step=self.dt) # consider converting this to linspace
@@ -218,71 +219,43 @@ class DiffusionModel:
             print(f"saving animation as {save_name}")
             im_ani = animation.ArtistAnimation(self.fig, self.ims, interval=50, repeat_delay=3000)
             Writer = animation.writers['ffmpeg'] # ['pillow'] can write gifs
-            writer = Writer(fps=15, metadata=dict(artist='Me'))
+            writer = Writer(fps=24, metadata=dict(artist='Me'))
             im_ani.save(save_name, writer=writer, dpi=dpi)
 
 
-    def source_propagation(self, save_movie=True, include_agent=True, save_name='animation.mp4', n_sources=250):
+    def source_propagation(self, n_sources=250):
         # get source movement data and wind data
         # data has been smoothed (via 'linear' interpolation)
         source_x_array, source_y_array, wind_x, wind_y = self.source.get_interpolated_data(self.t_array, n_sources)
         # n_sources = len(self.t_array) # should we do it like this? or would it be better if we allowed for n_sources and then let time keep going by
         
-        # delta x and delta y
-        # make smaller for smoother grid
-        dx = 0.5
-        dy = 0.5
-
-        source_x_array = np.floor(source_x_array/dx) # does this NEED to be floored? @ian: maybe un-floor this
-        source_y_array = np.floor(source_y_array/dy)
+        source_x_array = np.floor(source_x_array/self.dx) # does this NEED to be floored? @ian: maybe un-floor this
+        source_y_array = np.floor(source_y_array/self.dy)
 
         extra_space = 20
-        min_x = np.min(source_x_array) - dx*extra_space; max_x = np.max(source_x_array)+ dx*extra_space
-        min_y = np.min(source_y_array) - dy*extra_space; max_y = np.max(source_y_array)+ dy*extra_space
+        min_x = np.min(source_x_array) - self.dx*extra_space; max_x = np.max(source_x_array)+ self.dx*extra_space
+        min_y = np.min(source_y_array) - self.dy*extra_space; self.max_y = np.max(source_y_array)+ self.dy*extra_space
 
         # print(n_sources) # how many points are there?
 
-        x,y = np.meshgrid(np.arange(min_x, max_x, dx), np.arange(min_y, max_y, dy))
+        x,y = np.meshgrid(np.arange(min_x, max_x, self.dx), np.arange(min_y, self.max_y, self.dy))
 
         c = np.zeros(x.shape)
-        self.fig = plt.figure(figsize=(5,6))
-        self.ims = []
         source_activity = np.zeros(n_sources)
-        if include_agent:
-            agent_path_x = []
-            agent_path_y = []
-        
+        s_x = list(source_x_array)
+        s_y = list(source_y_array)
+        cs = [c]
         for t_i in range(0,len(self.t_array)):
             if(t_i%25 == 0):
-                print(f"{t_i*100/len(self.t_array)}% done.")
+                print(f"Source propagation: {t_i*100/len(self.t_array)}% done.")
             t = self.t_array[t_i]
 
-            # # what if len(t_array) > n_sources???? we might need to do a min max dealio or just extend source x array to be length of t_array
-            if t_i <= n_sources:
+            if t_i < n_sources:
                 source_activity[:t_i] = self.t_array[:t_i]
             else:
                 source_activity[:n_sources] = self.t_array[:n_sources]
-
-            # move agent step here (we need option to not include in movie)
-            if include_agent and t>self.agent_start:
-                a_x, a_y = self.agent.get_agent_position(c, x, y, dx, dy)
-                agent_path_x.append(a_x)
-                agent_path_y.append(a_y)
-
-            if save_movie: # ADD ANOTHER OPTION TO WATCH IN REAL TIME vs just save
-                plot = plt.pcolormesh(x,y,c, vmin=0, vmax=5)
-                title = plt.text(0, max_y+5, f"t={t_i+1}", size=20, horizontalalignment='center', verticalalignment='baseline')
-                if include_agent and t>self.agent_start:
-                    agent_point = plt.scatter(a_x, a_y, c='black', s=15)
-                    agent_path, = plt.plot(agent_path_x, agent_path_y, color='red', linewidth=1)
-                    self.ims.append([plot, title, agent_point, agent_path])
-                else:
-                    self.ims.append([plot, title])
-                # we need an evaluation here of how close to the target we are, like do we stop?!
-                # also a cost function
-                # plt.draw()
-                # plt.pause(0.00001)
-                # plt.clf()
+                s_x.append(source_x_array[n_sources-1])
+                s_y.append(source_y_array[n_sources-1])
             c = np.zeros(x.shape)
             for source_i in range(0,n_sources):
                 if source_activity[source_i] > 0:
@@ -290,14 +263,79 @@ class DiffusionModel:
                     curr_c = ((self.A/(curr_t**0.5))*np.exp(-1*(np.power((x-source_x_array[source_i]-(wind_x[source_i]*curr_t)),2)+
                     np.power((y-source_y_array[source_i])-wind_y[source_i]*curr_t,2))/(4*self.D*curr_t)))*(0.5**(curr_t/self.B))
                     c = c + curr_c
-        
-        if save_movie:
-            self.fig.colorbar(plot)
-            plt.xlabel('x')
-            plt.ylabel('y')
-            self.save(save_name, dpi=200)
-        print("done!")
+            cs.append(c)
+        print("saving")
+        np.savez(f"diffusion{self.endtime}.npz", x=x, y=y, cs=np.asarray(cs), s_x=s_x, s_y=s_y)
+    
+    @staticmethod
+    def dist(x1,y1,x2,y2):
+        return np.floor(np.sqrt((x1-x2)**2 + (y1-y2)**2))
 
-model = DiffusionModel(source=Source(), agent=Curtis(v_multiplier=0.75, strat_probs=[0.9,.1]), endtime=300)
-model.source_propagation(save_name='animation_test.mp4', n_sources=250) # n_sources could be smaller
+    def run_simulation(self, save_movie=True, include_agent=True, save_name='animation.mp4', n_sources=250, new_source_prop=False):
+        try:
+            if new_source_prop:
+                raise IOError
+            data = np.load(f"diffusion{self.endtime}.npz")
+            # print("No Source Simulation Necessary")
+        except IOError as error:
+            print("Propagating Source")
+            self.source_propagation(n_sources=n_sources)
+            data = np.load(f"diffusion{self.endtime}.npz")
+        finally:
+            x = data['x']
+            y = data['y']
+            cs = data['cs']
+            s_x = data['s_x']
+            s_y = data['s_y']
+
+            self.fig = plt.figure(figsize=(5,6))
+            self.ims = []            
+            if include_agent:
+                agent_path_x = []
+                agent_path_y = []
+            d = None
+            t = None
+            for t_i in range(0,len(self.t_array)):
+                # if(t_i%25 == 0):
+                    # print(f"Agent Tracking: {t_i*100/len(self.t_array)}% done.")
+                    # print(d,t)
+                t = self.t_array[t_i]
+                c = cs[t_i]
+                # move agent step here (we need option to not include in movie)
+                if include_agent and t>self.agent_start:
+                    a_x, a_y = self.agent.get_agent_position(c, x, y, self.dx, self.dy)
+                    agent_path_x.append(a_x)
+                    agent_path_y.append(a_y)
+                    d = self.dist(a_x,a_y,s_x[t_i-1],s_y[t_i-1])
+                    if d < 5:
+                        break
+
+                if save_movie: # ADD ANOTHER OPTION TO WATCH IN REAL TIME vs just save
+                    plot = plt.pcolormesh(x,y,c, vmin=0, vmax=5)
+                    if include_agent and t>self.agent_start:
+                        title = plt.text(0, self.max_y, f"t={t_i}, d={d}", size=20, horizontalalignment='center', verticalalignment='baseline')
+                        agent_point = plt.scatter(a_x, a_y, c='black', s=15)
+                        agent_path, = plt.plot(agent_path_x, agent_path_y, color='red', linewidth=1)
+                        self.ims.append([plot, title, agent_point, agent_path])
+                    else:
+                        title = plt.text(0, self.max_y, f"t={t_i+1}", size=20, horizontalalignment='center', verticalalignment='baseline')
+                        self.ims.append([plot, title])
+            if save_movie:
+                self.fig.colorbar(plot)
+                plt.xlabel('x')
+                plt.ylabel('y')
+                self.fig.legend([agent_path],[f"p(chemo)={self.agent.strat_probs[0]}"])
+                self.save(save_name, dpi=200)
+            # print("done!")
+            return d, t
+
+min_i, min_d = 10000, 10000
+for i in np.linspace(0,1,20):
+    model = DiffusionModel(source=Source(), agent=Curtis(v_multiplier={'chemotaxis':1,'crw':2}, strat_probs=[i,1-i]), endtime=400)
+    d,t = model.run_simulation(save_name='animation_test.mp4', new_source_prop=False, save_movie=False) # n_sources could be smaller
+    if d < min_d:
+        min_i = i
+        min_d = d
+    
+print(min_i, min_d)
 # the source simulation doesn't actually change so maybe we could do multiple agents on same simulation
