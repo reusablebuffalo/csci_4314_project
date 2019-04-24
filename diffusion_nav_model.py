@@ -9,10 +9,6 @@ import math
 import matplotlib.animation as animation
 import random
 
-#A is how much substance you have a time 0
-#B is the decay rate
-#D is diffusion rate
-
 #fix d a and b parameters 
 #play with ratio of chemotaxis and just random walk (random mix)
 
@@ -23,6 +19,15 @@ import random
 
 #set time 
 
+# fix D,B,A
+# fix path
+# fix diffusion properties
+# play with ratio between chemotaxis and random walk
+# play with difference in speed (ratio)
+# fix wind speed
+# better/more efficient search
+# run till convergence, max time
+# maybe use chemotaxis at higher concentrations
 class Source:
     def __init__(self):
         pass
@@ -39,10 +44,11 @@ class Source:
         cumulative_length = np.cumsum(step_lengths)
         final_step_locs = np.linspace(0, cumulative_length[-1], n_sources)
 
-        if(n_sources < len(t_array)): # should target just stop moving but still have an odor?
-            repeat_final_position = np.repeat(cumulative_length[-1], repeats=(len(t_array)-n_sources))
-            final_step_locs = np.append(final_step_locs, repeat_final_position)
-            n_sources = len(t_array)
+        # # target should stop moving!
+        # if(n_sources < len(t_array)): # should target just stop moving but still have an odor?
+        #     repeat_final_position = np.repeat(cumulative_length[-1], repeats=(len(t_array)-n_sources))
+        #     final_step_locs = np.append(final_step_locs, repeat_final_position)
+        #     n_sources = len(t_array)
 
         f = interpolate.interp1d(cumulative_length, pathXY) # location (x,y) as a funciton of arclength (distance traveled along curve)
         final_pathXY= f(final_step_locs) # compute smooth curve of source's path s
@@ -70,7 +76,7 @@ class Human(Source):
     def get_data(self, n):
         wind_x = np.random.uniform(-0.05,0.05,size=n)
         wind_y = np.random.uniform(-0.05,0.05,size=n)
-        source_y_array = np.linspace(0,50,n)
+        source_y_array = np.linspace(0,25,n)
         source_x_array = 10*np.sin(np.linspace(-math.pi, math.pi, n))
         return source_x_array, source_y_array, wind_x, wind_y
 
@@ -194,12 +200,12 @@ class DiffusionModel:
     ims = None
     
     def __init__(self, A=2, B=200, D=0.1, dt=1, endtime=275, source=Source(), agent=Agent(), agent_start=20):
-        self.A = A # SOMETHING ABOUT DIFFUSION; i think its concentration at sourcec
-        self.B = B #200 #20 
-        self.D = D
+        self.A = A # A is how much substance you have a time 0
+        self.B = B # 200 #20 # B is the decay rate
+        self.D = D # D is diffusion rate
         self.dt = dt # timestep
         self.endtime = endtime
-        self.t_array = np.arange(start=0, stop=self.endtime, step= self.dt) # consider converting this to linspace
+        self.t_array = np.arange(start=0, stop=self.endtime, step=self.dt) # consider converting this to linspace
         
         self.source = source
         self.agent = agent
@@ -220,7 +226,7 @@ class DiffusionModel:
         # get source movement data and wind data
         # data has been smoothed (via 'linear' interpolation)
         source_x_array, source_y_array, wind_x, wind_y = self.source.get_interpolated_data(self.t_array, n_sources)
-        n_sources = len(self.t_array) # should we do it like this? or would it be better if we allowed for n_sources and then let time keep going by
+        # n_sources = len(self.t_array) # should we do it like this? or would it be better if we allowed for n_sources and then let time keep going by
         
         # delta x and delta y
         # make smaller for smoother grid
@@ -241,27 +247,39 @@ class DiffusionModel:
         c = np.zeros(x.shape)
         self.fig = plt.figure(figsize=(5,6))
         self.ims = []
-
+        source_activity = np.zeros(n_sources)
+        if include_agent:
+            agent_path_x = []
+            agent_path_y = []
+        
         for t_i in range(0,len(self.t_array)):
             if(t_i%25 == 0):
                 print(f"{t_i*100/len(self.t_array)}% done.")
             t = self.t_array[t_i]
-            source_activity = np.zeros(n_sources) 
-            # what if len(t_array) > n_sources???? we might need to do a min max dealio or just extend source x array to be length of t_array
-            source_activity[:t_i] = self.t_array[:t_i]
+
+            # # what if len(t_array) > n_sources???? we might need to do a min max dealio or just extend source x array to be length of t_array
+            if t_i <= n_sources:
+                source_activity[:t_i] = self.t_array[:t_i]
+            else:
+                source_activity[:n_sources] = self.t_array[:n_sources]
 
             # move agent step here (we need option to not include in movie)
+            if include_agent and t>self.agent_start:
+                a_x, a_y = self.agent.get_agent_position(c, x, y, dx, dy)
+                agent_path_x.append(a_x)
+                agent_path_y.append(a_y)
 
             if save_movie: # ADD ANOTHER OPTION TO WATCH IN REAL TIME vs just save
                 plot = plt.pcolormesh(x,y,c, vmin=0, vmax=5)
                 title = plt.text(0, max_y+5, f"t={t_i+1}", size=20, horizontalalignment='center', verticalalignment='baseline')
-                target_point = plt.scatter(source_x_array[t_i], source_y_array[t_i], c='red', s=5)
                 if include_agent and t>self.agent_start:
-                    a_x, a_y = self.agent.get_agent_position(c, x, y, dx, dy)
                     agent_point = plt.scatter(a_x, a_y, c='black', s=15)
-                    self.ims.append([plot, title, agent_point, target_point])
+                    agent_path, = plt.plot(agent_path_x, agent_path_y, color='red', linewidth=1)
+                    self.ims.append([plot, title, agent_point, agent_path])
                 else:
-                    self.ims.append([plot, title, target_point])
+                    self.ims.append([plot, title])
+                # we need an evaluation here of how close to the target we are, like do we stop?!
+                # also a cost function
                 # plt.draw()
                 # plt.pause(0.00001)
                 # plt.clf()
@@ -272,10 +290,14 @@ class DiffusionModel:
                     curr_c = ((self.A/(curr_t**0.5))*np.exp(-1*(np.power((x-source_x_array[source_i]-(wind_x[source_i]*curr_t)),2)+
                     np.power((y-source_y_array[source_i])-wind_y[source_i]*curr_t,2))/(4*self.D*curr_t)))*(0.5**(curr_t/self.B))
                     c = c + curr_c
-        self.fig.colorbar(plot)
-        plt.xlabel('x')
-        plt.ylabel('y')
-        self.save(save_name, dpi=200)
+        
+        if save_movie:
+            self.fig.colorbar(plot)
+            plt.xlabel('x')
+            plt.ylabel('y')
+            self.save(save_name, dpi=200)
+        print("done!")
 
-model = DiffusionModel(source=Source(), agent=Curtis(v_multiplier=1, strat_probs=[0,1]), endtime=275)
-model.source_propagation(save_name='animation_test.mp4', n_sources=250)
+model = DiffusionModel(source=Source(), agent=Curtis(v_multiplier=0.75, strat_probs=[0.9,.1]), endtime=300)
+model.source_propagation(save_name='animation_test.mp4', n_sources=250) # n_sources could be smaller
+# the source simulation doesn't actually change so maybe we could do multiple agents on same simulation
