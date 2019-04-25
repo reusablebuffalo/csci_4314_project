@@ -253,8 +253,8 @@ class DiffusionModel:
                 source_activity[:t_i] = self.t_array[:t_i]
             else:
                 source_activity[:n_sources] = self.t_array[:n_sources]
-                s_x.append(source_x_array[n_sources-1])
-                s_y.append(source_y_array[n_sources-1])
+                s_x.append(source_x_array[-1])
+                s_y.append(source_y_array[-1])
             c = np.zeros(x.shape)
             for source_i in range(0,n_sources):
                 if source_activity[source_i] > 0:
@@ -307,10 +307,9 @@ class DiffusionModel:
                     a_x, a_y = self.agent.get_agent_position(c, x, y, self.dx, self.dy)
                     agent_path_x.append(a_x)
                     agent_path_y.append(a_y)
-                    d = self.dist(a_x,a_y,s_x[t_i-1],s_y[t_i-1])
+                    d = self.dist(a_x,a_y,s_x[t_i],s_y[t_i])
                     if d < 5:
                         break
-
                 if save_movie: # ADD ANOTHER OPTION TO WATCH IN REAL TIME vs just save
                     plot = plt.pcolormesh(x,y,c, vmin=0, vmax=5)
                     if include_agent and t>self.agent_start:
@@ -325,7 +324,8 @@ class DiffusionModel:
                 self.fig.colorbar(plot)
                 plt.xlabel('x')
                 plt.ylabel('y')
-                self.fig.legend([agent_path],[f"p(chemo)={self.agent.strat_probs[0]}"])
+                if include_agent:
+                    self.fig.legend([agent_path],[f"p(chemo)={self.agent.strat_probs[0]}\np(crw)={self.agent.strat_probs[1]}\np(brw)={self.agent.strat_probs[2]}\nv={self.agent.v}"],loc='lower right')
                 self.save(save_name, dpi=200)
             # print("done!")
             return d, t
