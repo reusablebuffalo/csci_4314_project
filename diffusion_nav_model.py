@@ -18,7 +18,7 @@ class DiffusionModel:
     dy = 0.5
     max_y = 115
     
-    def __init__(self, A=5, B=400, D=0.15, dt=1, endtime=275, source=Source(), agent=Agent(), agent_start=20):
+    def __init__(self, A=2, B=400, D=0.1, dt=1, endtime=275, source=Source(), agent=Agent(), agent_start=20):
         self.A = A # A is how much substance you have a time 0
         self.B = B # 200 #20 # B is the decay rate
         self.D = D # D is diffusion rate # 0.1 default
@@ -78,8 +78,8 @@ class DiffusionModel:
             for source_i in range(0,n_sources):
                 if source_activity[source_i] > 0:
                     curr_t = t - source_activity[source_i]
-                    curr_c = ((self.A/(4*np.pi*self.D*curr_t))*np.exp(-1*(np.power((x-source_x_array[source_i]-(wind_x[source_i]*curr_t)),2)+
-                    np.power((y-source_y_array[source_i])-wind_y[source_i]*curr_t,2))/(4*self.D*curr_t)))#*(0.5**(curr_t/self.B))
+                    curr_c = ((self.A/(curr_t**0.5))*np.exp(-1*(np.power((x-source_x_array[source_i]-(wind_x[source_i]*curr_t)),2)+
+                    np.power((y-source_y_array[source_i])-wind_y[source_i]*curr_t,2))/(4*self.D*curr_t)))*(0.5**(curr_t/self.B))
                     c = c + curr_c
             cs.append(c)
         print("saving")
