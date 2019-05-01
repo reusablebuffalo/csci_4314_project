@@ -39,15 +39,24 @@ class Intermittent(Agent):
     
     def get_agent_position(self, c, x, y, dx, dy):
         strat = np.random.choice(['chemotaxis', 'crw','brw','chemoment'], p=self.strat_probs)
-        px, py = None,None
+
+        fy,fx = np.gradient(c,dx,dx) # fy before fx
+        tt = np.floor(x/dx) == np.floor(self.pos_x/dx); ttt = np.floor(y/dy) == np.floor(self.pos_y/dy)
+        indt = tt&ttt # where is agent
+        fx = fx[indt]; fy = fy[indt]
+        self.curr_c_agent  = c[indt]
+        if self.curr_c_agent < 0.3 or len(self.curr_c_agent)==0: # threshold for chemotaxis
+            strat = 'crw'
+
+        px, py = None, None
         if strat == 'chemotaxis':
-            px, py = self.chemotaxis(c,x,y,dx,dy)
+            px, py = self.chemotaxis(fx, fy)
         elif strat == 'crw':
-            px, py = self.crw(c,x,y,dx,dy)
+            px, py = self.crw()
         elif strat == 'brw':
-            px, py = self.brw(c,x,y,dx,dy)
+            px, py = self.brw()
         elif strat == 'chemoment':
-            px, py = self.chemoment(c,x,y,dx,dy)
+            px, py = self.chemoment(fx, fy)
         else:
             raise ValueError(f"No strategy called {strat}")
         
@@ -55,7 +64,7 @@ class Intermittent(Agent):
         self.pos_y = self.pos_y + self.get_v(strat) * py
         return self.pos_x, self.pos_y
 
-    def brw(self, c, x, y, dx, dy):
+    def brw(self):
         #Changed to have to move in either direction
         choice = np.floor(random.uniform(0,1) * 2) + 1
         if choice == 1:
@@ -66,9 +75,11 @@ class Intermittent(Agent):
             raise ValueError('no such choice')
         self.curr_px = np.cos(self.theta)
         self.curr_py = np.sin(self.theta)
+        self.prev_px.append(self.curr_px)
+        self.prev_py.append(self.curr_py)
         return self.curr_px, self.curr_py
 
-    def crw(self, c, x, y, dx, dy):
+    def crw(self):
         choice = np.floor(random.uniform(0,1) * 2) + 1
         if choice == 1:
             self.theta = self.theta + self.sigma02 * random.uniform(0,1)
@@ -78,22 +89,16 @@ class Intermittent(Agent):
             raise ValueError('no such choice')
         self.curr_px = np.cos(self.theta)
         self.curr_py = np.sin(self.theta)
-
         self.prev_px.append(self.curr_px)
         self.prev_py.append(self.curr_py)
 
         return self.curr_px, self.curr_py
 
-    def chemotaxis(self, c, x, y, dx, dy):
-        fy,fx = np.gradient(c,dx,dx) # fy before fx
-        tt = np.floor(x/dx) == np.floor(self.pos_x/dx)
-        ttt = np.floor(y/dy) == np.floor(self.pos_y/dy)
-        indt = tt&ttt # where is agent
-        norm =np.linalg.norm([fx[indt], fy[indt]])
-        self.curr_c_agent  = c[indt]
-        if norm>0 and self.curr_c_agent>0.3: #0.01
-            self.curr_px = fx[indt][0]/norm
-            self.curr_py = fy[indt][0]/norm
+    def chemotaxis(self, fx, fy):
+        norm = np.linalg.norm([fx, fy])
+        if norm>0: #0.01
+            self.curr_px = fx[0]/norm
+            self.curr_py = fy[0]/norm
         else:
             self.curr_px = 0 
             self.curr_py = 0
@@ -102,21 +107,17 @@ class Intermittent(Agent):
         self.theta = np.arctan2(self.curr_py, self.curr_px)
         return self.curr_px, self.curr_py
     
-    def chemoment(self, c, x, y, dx, dy):
-        fy,fx = np.gradient(c,dx,dx) # fy before fx
-        tt = np.floor(x/dx) == np.floor(self.pos_x/dx)
-        ttt = np.floor(y/dy) == np.floor(self.pos_y/dy)
-        indt = tt&ttt # where is agent
-        norm =np.linalg.norm([fx[indt], fy[indt]])
-        self.curr_c_agent  = c[indt]
-        if norm>0 and self.curr_c_agent>0.3: #0.01
-            self.curr_px = fx[indt][0]/norm
-            self.curr_py = fy[indt][0]/norm
+    def chemoment(self, fx, fy):
+        norm = np.linalg.norm([fx, fy])
+        if norm>0: #0.01
+            self.curr_px = fx[0]/norm
+            self.curr_py = fy[0]/norm
         else:
             self.curr_px = 0 
             self.curr_py = 0
         self.prev_px.append(self.curr_px)
         self.prev_py.append(self.curr_py)
+        
         mem_px = self.prev_px[-self.mem_internal:]
         mem_py = self.prev_py[-self.mem_internal:]
         discounts = np.power(self.discount*np.ones(len(mem_px)),np.arange(len(mem_px)))
@@ -130,6 +131,7 @@ class Intermittent(Agent):
         else:
             mem_px = 0
             mem_py = 0
+        
         self.theta = np.arctan2(mem_py, mem_px)
         return mem_px, mem_py
 
