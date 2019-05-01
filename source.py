@@ -6,7 +6,7 @@ class Source:
         pass
     
     def get_interpolated_data(self, t_array, n_sources):
-        source_x_array, source_y_array, wind_x, wind_y = self.get_data(30) # wind_x and wind_y must have same length
+        source_x_array, source_y_array, wind_x, wind_y = self.get_data(100) # wind_x and wind_y must have same length
         pathXY = np.asarray([source_x_array, source_y_array])
         
         # compute step lengths from data
@@ -47,8 +47,8 @@ class Source:
 
 class Human(Source):
     def get_data(self, n):
-        wind_x = np.random.uniform(-0.05,0.05,size=n)
-        wind_y = np.random.uniform(-0.05,0.05,size=n)
+        wind_x = np.random.uniform(-0.1,0.1,size=n)
+        wind_y = np.random.uniform(-0.1,0.1,size=n)
         source_y_array = np.linspace(0,50,n)
         source_x_array = 10*np.sin(np.linspace(-np.pi, np.pi, n))
         return source_x_array, source_y_array, wind_x, wind_y
