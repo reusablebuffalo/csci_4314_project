@@ -18,7 +18,8 @@ class DiffusionModel:
     dy = 0.5
     max_y = 115
     
-    def __init__(self, A=2, B=400, D=0.1, dt=1, endtime=275, source=Source(), agent=Agent(), agent_start=20):
+    # change around A (15 seemed to work well)
+    def __init__(self, A=15, B=400, D=0.1, dt=1, endtime=275, source=Source(), agent=Agent(), agent_start=20):
         self.A = A # A is how much substance you have a time 0
         self.B = B # 200 #20 # B is the decay rate
         self.D = D # D is diffusion rate # 0.1 default
@@ -78,8 +79,10 @@ class DiffusionModel:
             for source_i in range(0,n_sources):
                 if source_activity[source_i] > 0:
                     curr_t = t - source_activity[source_i]
-                    curr_c = ((self.A/(curr_t**0.5))*np.exp(-1*(np.power((x-source_x_array[source_i]-(wind_x[source_i]*curr_t)),2)+
-                    np.power((y-source_y_array[source_i])-wind_y[source_i]*curr_t,2))/(4*self.D*curr_t)))*(0.5**(curr_t/self.B))
+                    curr_c = ((self.A/(4*np.pi*self.D*curr_t))*np.exp(-1*(np.power(x-source_x_array[source_i]-wind_x[source_i]*curr_t,2)+
+                    np.power(y-source_y_array[source_i]-wind_y[source_i]*curr_t,2))/(4*self.D*curr_t)))
+                    # curr_c = ((self.A/(curr_t**0.5))*np.exp(-1*(np.power(x-source_x_array[source_i]-wind_x[source_i]*curr_t,2)+
+                    # np.power(y-source_y_array[source_i]-wind_y[source_i]*curr_t,2))/(4*self.D*curr_t)))*(0.5**(curr_t/self.B))
                     c = c + curr_c
             cs.append(c)
         print("saving")
@@ -115,6 +118,7 @@ class DiffusionModel:
                 agent_path_y = []
             d = None
             t = None
+            found = False
             for t_i in range(0,len(self.t_array)):
                 if(t_i%25 == 0):
                     print(f"Agent Tracking: {t_i*100/len(self.t_array)}% done.")
@@ -128,16 +132,17 @@ class DiffusionModel:
                     agent_path_y.append(a_y)
                     d = self.dist(a_x,a_y,s_x[t_i],s_y[t_i])
                     if d < 5:
+                        found = True
                         break
                 if save_movie: # ADD ANOTHER OPTION TO WATCH IN REAL TIME vs just save
-                    plot = plt.pcolormesh(x,y,c, vmin=0, vmax=4)
+                    plot = plt.pcolormesh(x,y,c, vmin=0, vmax=5)
                     if include_agent and t>self.agent_start:
-                        title = plt.text(0, self.max_y, f"t={t_i}, d={d}", size=20, horizontalalignment='center', verticalalignment='baseline')
+                        title = plt.text(0, self.max_y, f"t={t}, d={d}", size=20, horizontalalignment='center', verticalalignment='baseline')
                         agent_point = plt.scatter(a_x, a_y, c='black', s=15)
                         agent_path, = plt.plot(agent_path_x, agent_path_y, color='red', linewidth=1)
                         self.ims.append([plot, title, agent_point, agent_path])
                     else:
-                        title = plt.text(0, self.max_y, f"t={t_i+1}", size=20, horizontalalignment='center', verticalalignment='baseline')
+                        title = plt.text(0, self.max_y, f"t={t}", size=20, horizontalalignment='center', verticalalignment='baseline')
                         self.ims.append([plot, title])
             if save_movie:
                 self.fig.colorbar(plot)
@@ -148,7 +153,7 @@ class DiffusionModel:
                     self.fig.legend([agent_path],[legend_text],loc='lower right')
                 self.save(save_name, dpi=200)
             # print("done!")
-            return d, t
+            return found, d, t
 
 min_i, min_d = 10000, 10000
 # for i in np.linspace(0,1,20):
@@ -159,9 +164,9 @@ min_i, min_d = 10000, 10000
 #         min_d = d 
 # print(min_i, min_d)
 
-agent = Intermittent(v_multiplier={'chemotaxis':0.75,'crw':3, 'brw':6, 'chemoment':1}, strat_probs=[1,0,0,0], mem_internal=10, discount=0.7)
-model = DiffusionModel(source=Human(), agent=agent, endtime=300, agent_start=20)
-d,t = model.run_simulation(save_name='animation_test.mp4', new_source_prop=False, save_movie=True, n_sources=250, include_agent=True) # n_sources could be smaller
-print(d,t)
+agent = Intermittent(v_multiplier={'chemotaxis':2,'crw':2, 'brw':6, 'chemoment':1}, strat_probs=[0,0.5,0,0.5], mem_internal=15, discount=0.7)
+model = DiffusionModel(source=Human(), agent=agent, endtime=500, agent_start=20, dt=0.5)
+found, d,t = model.run_simulation(save_name='animation_test.mp4', new_source_prop=False, save_movie=True, n_sources=250, include_agent=True) # n_sources could be smaller
+print(found, d,t)
 
 # 0.01 for wind, brw: 3, 0.9, 0.1s
