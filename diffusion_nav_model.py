@@ -144,7 +144,8 @@ class DiffusionModel:
                 plt.xlabel('x')
                 plt.ylabel('y')
                 if include_agent:
-                    self.fig.legend([agent_path],[f"p(chemo)={self.agent.strat_probs[0]}\np(crw)={self.agent.strat_probs[1]}\np(brw)={self.agent.strat_probs[2]}\nv={self.agent.v}"],loc='lower right')
+                    legend_text = f"p(chemo)={self.agent.strat_probs[0]}\np(crw)={self.agent.strat_probs[1]}\np(brw)={self.agent.strat_probs[2]}\np(chemoment)={self.agent.strat_probs[3]}\nv={self.agent.v}"
+                    self.fig.legend([agent_path],[legend_text],loc='lower right')
                 self.save(save_name, dpi=200)
             # print("done!")
             return d, t
@@ -158,8 +159,9 @@ min_i, min_d = 10000, 10000
 #         min_d = d 
 # print(min_i, min_d)
 
-model = DiffusionModel(source=Human(), agent=Intermittent(v_multiplier={'chemotaxis':1,'crw':4, 'brw':6}, strat_probs=[0.85,0.15,0]), endtime=250)
-d,t = model.run_simulation(save_name='animation_test.mp4', new_source_prop=False, save_movie=True, n_sources=250) # n_sources could be smaller
+agent = Intermittent(v_multiplier={'chemotaxis':0.75,'crw':3, 'brw':6, 'chemoment':1}, strat_probs=[1,0,0,0], mem_internal=10, discount=0.7)
+model = DiffusionModel(source=Human(), agent=agent, endtime=300, agent_start=20)
+d,t = model.run_simulation(save_name='animation_test.mp4', new_source_prop=False, save_movie=True, n_sources=250, include_agent=True) # n_sources could be smaller
 print(d,t)
 
 # 0.01 for wind, brw: 3, 0.9, 0.1s
