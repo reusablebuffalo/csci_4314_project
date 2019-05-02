@@ -45,7 +45,7 @@ class Intermittent(Agent):
         indt = tt&ttt # where is agent
         fx = fx[indt]; fy = fy[indt]
         self.curr_c_agent  = c[indt]
-        if self.curr_c_agent < 0.3 or len(self.curr_c_agent)==0: # threshold for chemotaxis
+        if self.curr_c_agent < 0.01 or len(self.curr_c_agent)==0: # threshold for chemotaxis
             strat = 'crw'
 
         px, py = None, None
