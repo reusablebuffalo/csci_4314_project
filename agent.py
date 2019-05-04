@@ -18,7 +18,7 @@ class Agent:
         self.bias_theta = np.pi/2
         self.curr_c_agent = 0
         self.sigma02 = np.pi/16 # np.pi
-        self.theta = np.pi*(4.0/3)
+        self.theta = np.pi*(3/4)
     
     def get_v(self, strategy):
         return self.v.get(strategy,1)*self.step
@@ -40,7 +40,7 @@ class Intermittent(Agent):
     def get_agent_position(self, c, x, y, dx, dy):
         strat = np.random.choice(['chemotaxis', 'crw','brw','chemoment'], p=self.strat_probs)
 
-        fy,fx = np.gradient(c,dx,dx) # fy before fx
+        fy,fx = np.gradient(c,dy,dx) # fy before fx
         tt = np.floor(x/dx) == np.floor(self.pos_x/dx); ttt = np.floor(y/dy) == np.floor(self.pos_y/dy)
         indt = tt&ttt # where is agent
         fx = fx[indt]; fy = fy[indt]
