@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-from source import Source, Human
+from source import Source, Human, Tricky
 from agent import Agent, Intermittent
 
 class DiffusionModel:
@@ -110,6 +110,7 @@ class DiffusionModel:
                 raise Exception("need new_source_prop")
             s_x = data['s_x']
             s_y = data['s_y']
+            data.close()
 
             if save_movie:
                 self.fig = plt.figure(figsize=(10,12))
@@ -149,20 +150,23 @@ class DiffusionModel:
                 self.fig.colorbar(plot)
                 plt.xlabel('x')
                 plt.ylabel('y')
+                # plt.title(f"i={t_i+1}")
                 if include_agent:
                     legend_text = f"p(chemo)={self.agent.strat_probs[0]}\np(crw)={self.agent.strat_probs[1]}\np(brw)={self.agent.strat_probs[2]}\np(chemoment)={self.agent.strat_probs[3]}\nv={self.agent.v}"
                     self.fig.legend([agent_path],[legend_text],loc='lower right')
                 self.save(save_name, dpi=200)
+                # plt.show()
             # print("done!")
+            plt.close()
             return found, d, t
 
 # min_i, min_d = float('inf'), float('inf')
-# params, trials = 10,5
-# param_sweep = np.linspace(.3,.7,params)
+# params, trials = 11,25
+# param_sweep = np.linspace(0.5,0.6,params)
 # sweep = np.zeros((params,trials))
 # for i,p in enumerate(param_sweep):
 #     for j in range(trials):
-#         agent = Intermittent(v_multiplier={'chemotaxis':1,'crw':1.5, 'brw':6, 'chemoment':1}, strat_probs=[0,p,0,1-p], mem_internal=0, discount=0.9)
+#         agent = Intermittent(v_multiplier={'chemotaxis':1,'crw':1.5, 'brw':6, 'chemoment':1}, strat_probs=[0,0.55,0,0.45], mem_internal=0, discount=0.9)
 #         model = DiffusionModel(source=Human(), agent=agent, endtime=400, agent_start=20, dt=0.5) #endtime 400
 #         found, d,t = model.run_simulation(save_name='animation_test.mp4', new_source_prop=False, save_movie=False, n_sources=250, include_agent=True) # n_sources could be smaller
 #         sweep[i][j] = d
@@ -174,9 +178,15 @@ class DiffusionModel:
 # print(sweep)
 # print(param_sweep)
 # print(sweep.mean(axis=1))
+# success_rates = (sweep < 5).sum(axis=1)/trials
+# plt.plot(param_sweep,success_rates, color='red',linewidth=3)
+# plt.xlabel('p(crw) = 1-p(chemoment)')
+# plt.ylabel('success rate')
+# plt.title(f'Success Rate of Agent for n={trials} trials for Various p(crw) values\n with v_crw = 1.5 and v_chemoment=1 \n Agent Turns Around if Concentration < 0.01')
+# plt.show()
 # # sweeps so far have given p(crw)=0.55, p(moment) = 0.45, v_crw=1, mem_internal = 0!!!!!!!!
 
-agent = Intermittent(v_multiplier={'chemotaxis':1,'crw':1.5, 'brw':6, 'chemoment':1}, strat_probs=[0.0,0.4,0,0.6], mem_internal=0, discount=0.9)
+agent = Intermittent(v_multiplier={'chemotaxis':1,'crw':1.5, 'brw':6, 'chemoment':1}, strat_probs=[0,0.55,0,0.45], mem_internal=0, discount=0.9)
 model = DiffusionModel(source=Human(), agent=agent, endtime=400, agent_start=40, dt=0.5) #endtime 400
 found, d,t = model.run_simulation(save_name='animation_test.mp4', new_source_prop=False, save_movie=True, n_sources=250, include_agent=True) # n_sources could be smaller
 print(found, d,t)

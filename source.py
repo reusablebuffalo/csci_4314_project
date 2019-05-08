@@ -52,3 +52,15 @@ class Human(Source):
         source_y_array = np.linspace(0,50,n)
         source_x_array = 10*np.sin(np.linspace(-np.pi, np.pi, n))
         return source_x_array, source_y_array, wind_x, wind_y
+
+class Tricky(Source):
+    def get_data(self, n):
+        wind_x = np.random.uniform(-0.05,0.05,size=n)
+        wind_y = np.random.uniform(-0.05,0.05,size=n)
+        first_half_x = np.zeros(int(n/2))
+        second_half_x = np.linspace(0,30,n-int(n/2))
+        first_half_y = np.linspace(0,30,int(n/2))
+        second_half_y = 30*np.ones(n-int(n/2))
+        source_y_array = np.concatenate((first_half_y, second_half_y))
+        source_x_array = np.concatenate((first_half_x, second_half_x))
+        return source_x_array, source_y_array, wind_x, wind_y
